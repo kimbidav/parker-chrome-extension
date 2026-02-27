@@ -5,8 +5,18 @@
   "description": "Check if a LinkedIn profile exists in Parker CRM. View record or create a stub candidate in one click.",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "declarativeNetRequest"
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "parker_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
   "host_permissions": [
     "https://parker.candidatelabs.com/*"
   ],

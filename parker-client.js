@@ -276,32 +276,25 @@ export async function createCandidate({
       return { ok: false, error: "Not authenticated with Parker." };
     }
 
-    // Step 1: Submit the LinkedIn URL check to get to the create form
-    const checkPage = await getPage(
-      `${PARKER_BASE}/candidates/linkedin_url_check`
-    );
-    const checkHtml = await checkPage.text();
-    const token = extractCsrfToken(checkHtml);
+    // GET the new-candidate form directly (avoids the check_linkedin_url
+    // redirect chain which can break CSRF token/session synchronisation
+    // in the service worker's fetch).
+    const newPage = await getPage(`${PARKER_BASE}/candidates/new`);
+    if (!newPage.ok) {
+      return { ok: false, error: `Could not load create form (HTTP ${newPage.status}).` };
+    }
+    const newHtml = await newPage.text();
 
-    const urlCheckResp = await postForm(
-      `${PARKER_BASE}/candidates/check_linkedin_url`,
-      { authenticity_token: token, linkedin_url: linkedinUrl }
-    );
-    const urlCheckHtml = await urlCheckResp.text();
-
-    // If candidate already exists, return their info
-    if (/\/candidates\/\d+$/.test(urlCheckResp.url)) {
-      const candidate = parseCandidatePage(urlCheckHtml, urlCheckResp.url);
-      return { ok: true, alreadyExisted: true, candidate };
+    const createToken = extractCsrfToken(newHtml);
+    if (!createToken) {
+      return { ok: false, error: "Could not extract CSRF token from create form." };
     }
 
-    // Step 2: We're on /candidates/new — extract CSRF and owner ID
-    const createToken = extractCsrfToken(urlCheckHtml);
     const sourced = sourcedDate || new Date().toISOString().split("T")[0];
 
     // Use the logged-in user's own email to auto-detect their owner ID
     const { parkerEmail } = await chrome.storage.sync.get("parkerEmail");
-    const ownerId = findOwnerIdForEmail(urlCheckHtml, parkerEmail || "");
+    const ownerId = findOwnerIdForEmail(newHtml, parkerEmail || "");
 
     const payload = {
       authenticity_token: createToken,

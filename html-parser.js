@@ -12,11 +12,30 @@
  */
 export function extractCsrfToken(html) {
   let m = html.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/);
-  if (m) return m[1];
+  if (m) return decodeHtmlEntities(m[1]);
   m = html.match(/<input[^>]*name="authenticity_token"[^>]*value="([^"]+)"/);
-  if (m) return m[1];
+  if (m) return decodeHtmlEntities(m[1]);
   m = html.match(/<input[^>]*value="([^"]+)"[^>]*name="authenticity_token"/);
-  return m ? m[1] : "";
+  return m ? decodeHtmlEntities(m[1]) : "";
+}
+
+/**
+ * Decode common HTML entities in a string.
+ * Rails may encode special characters in CSRF token attributes.
+ */
+function decodeHtmlEntities(str) {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x2[Bb];/g, "+")
+    .replace(/&#43;/g, "+")
+    .replace(/&#x2[Ff];/g, "/")
+    .replace(/&#47;/g, "/")
+    .replace(/&#61;/g, "=")
+    .replace(/&#x3[Dd];/g, "=");
 }
 
 /**
@@ -64,36 +83,34 @@ export function parseCandidatePage(html, finalUrl) {
     data.name = h1Match[1].replace(/<[^>]*>/g, "").trim();
   }
 
-  // Sourced By — appears after "Sourced By" label in Parker's HTML.
-  // The label and value are in sibling elements, so we skip through
-  // any number of closing/opening tags to reach the value text.
+  // Sourced By — Parker uses <dt>label</dt><dd>value</dd> pairs.
   const sourcedByMatch = html.match(
-    /Sourced\s+By\s*(?:<[^>]*>\s*)+([^<]+)/i
+    /Sourced\s+By<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/i
   );
   if (sourcedByMatch) {
-    const sourcedByText = sourcedByMatch[1].trim();
-    if (sourcedByText && !/Sourced\s+By/i.test(sourcedByText)) {
+    const sourcedByText = sourcedByMatch[1].replace(/<[^>]*>/g, "").trim();
+    if (sourcedByText) {
       data.sourced_by = sourcedByText;
     }
   }
 
-  // Current Owner — same pattern as Sourced By
+  // Current Owner — same <dt>/<dd> pattern
   const ownerMatch = html.match(
-    /Current\s+Owner\s*(?:<[^>]*>\s*)+([^<]+)/i
+    /Current\s+Owner<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/i
   );
   if (ownerMatch) {
-    const ownerText = ownerMatch[1].trim();
-    if (ownerText && !/Current\s+Owner/i.test(ownerText)) {
+    const ownerText = ownerMatch[1].replace(/<[^>]*>/g, "").trim();
+    if (ownerText) {
       data.current_owner = ownerText;
     }
   }
 
-  // Location — same pattern
+  // Location — same <dt>/<dd> pattern
   const locationMatch = html.match(
-    />\s*Location\s*(?:<[^>]*>\s*)+([^<]+)/i
+    />\s*Location<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/i
   );
   if (locationMatch) {
-    const loc = locationMatch[1].trim();
+    const loc = locationMatch[1].replace(/<[^>]*>/g, "").trim();
     if (loc && loc !== "N/A") {
       data.location = loc;
     }
@@ -215,7 +232,7 @@ export function findOwnerIdForEmail(html, email) {
   );
   if (!selectMatch) return "";
 
-  const optionPattern = /<option\s+value="(\d+)"[^>]*>([^<]*)<\/option>/gi;
+  const optionPattern = /<option[^>]*value="(\d+)"[^>]*>([^<]*)<\/option>/gi;
   let m;
   while ((m = optionPattern.exec(selectMatch[1])) !== null) {
     if (m[2].trim().toLowerCase() === email.toLowerCase()) {
