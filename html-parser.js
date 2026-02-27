@@ -39,8 +39,9 @@ export function namesFromLinkedinUrl(url) {
   const m = url.match(/\/in\/([^/?]+)/);
   if (!m) return [];
   let slug = m[1];
-  // Remove trailing LinkedIn ID suffixes (5+ digits)
-  slug = slug.replace(/-\d{5,}$/, "");
+  // Remove trailing LinkedIn ID suffixes — purely numeric or alphanumeric
+  // e.g. '-398131117' or '-b166a9171'
+  slug = slug.replace(/-[a-z]?\d{5,}\d*$/i, "");
   // Split on hyphens, keep parts longer than 1 char
   return slug.split("-").filter((p) => p && p.length > 1);
 }

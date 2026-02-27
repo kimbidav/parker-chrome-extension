@@ -326,13 +326,17 @@ export async function createCandidate({
       return { ok: true, alreadyExisted: false, candidate };
     }
 
-    // Try to extract an error message from the response
-    const errorMatch = createHtml.match(
-      /class="[^"]*(?:error|alert)[^"]*"[^>]*>([^<]+)/i
+    // Try to extract an error message from the response.
+    // Parker wraps errors in nested HTML (e.g. <div class="alert"><ul><li>...</li></ul></div>)
+    // so we grab the whole error block and strip tags.
+    const errorBlockMatch = createHtml.match(
+      /class="[^"]*(?:error|alert)[^"]*"[^>]*>([\s\S]*?)<\/div>/i
     );
-    const errorMsg = errorMatch
-      ? errorMatch[1].trim()
-      : `HTTP ${createResp.status}`;
+    let errorMsg = `HTTP ${createResp.status}`;
+    if (errorBlockMatch) {
+      const stripped = errorBlockMatch[1].replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      if (stripped) errorMsg = stripped;
+    }
     return { ok: false, error: `Parker rejected the candidate: ${errorMsg}` };
   } catch (err) {
     return { ok: false, error: err.message || "Failed to create candidate." };
